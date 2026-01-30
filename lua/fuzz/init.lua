@@ -246,6 +246,38 @@ function M.open()
     end
   end, { buffer = popup_buf, noremap = true, silent = true })
 
+  -- Emacs-like keybindings
+  vim.keymap.set("i", "<C-f>", function()
+    local cursor = vim.api.nvim_win_get_cursor(popup_win)
+    local line = vim.api.nvim_buf_get_lines(popup_buf, 0, 1, false)[1] or ""
+    if cursor[2] < #line then
+      vim.api.nvim_win_set_cursor(popup_win, { 1, cursor[2] + 1 })
+    end
+  end, { buffer = popup_buf, noremap = true, silent = true })
+
+  vim.keymap.set("i", "<C-b>", function()
+    local cursor = vim.api.nvim_win_get_cursor(popup_win)
+    if cursor[2] > 0 then
+      vim.api.nvim_win_set_cursor(popup_win, { 1, cursor[2] - 1 })
+    end
+  end, { buffer = popup_buf, noremap = true, silent = true })
+
+  vim.keymap.set("i", "<C-a>", function()
+    vim.api.nvim_win_set_cursor(popup_win, { 1, 0 })
+  end, { buffer = popup_buf, noremap = true, silent = true })
+
+  vim.keymap.set("i", "<C-e>", function()
+    local line = vim.api.nvim_buf_get_lines(popup_buf, 0, 1, false)[1] or ""
+    vim.api.nvim_win_set_cursor(popup_win, { 1, #line })
+  end, { buffer = popup_buf, noremap = true, silent = true })
+
+  vim.keymap.set("i", "<C-k>", function()
+    local cursor = vim.api.nvim_win_get_cursor(popup_win)
+    local line = vim.api.nvim_buf_get_lines(popup_buf, 0, 1, false)[1] or ""
+    local new_line = line:sub(1, cursor[2])
+    vim.api.nvim_buf_set_lines(popup_buf, 0, -1, false, { new_line })
+  end, { buffer = popup_buf, noremap = true, silent = true })
+
   vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
     buffer = popup_buf,
     callback = function()
