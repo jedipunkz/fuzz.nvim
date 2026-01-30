@@ -91,8 +91,73 @@ local function git_switch(branch_name, is_new)
   return true
 end
 
+local function get_remote_host()
+  local result = vim.fn.system("git remote get-url origin 2>/dev/null")
+  if vim.v.shell_error ~= 0 then
+    return nil
+  end
+  local url = vim.trim(result)
+  -- Parse SSH URL: git@github.com:user/repo.git or ssh://git@github.com/user/repo.git
+  local host = url:match("^git@([^:]+):") or url:match("^ssh://[^@]+@([^/]+)/")
+  return host
+end
+
+local function parse_ssh_config()
+  local home = vim.fn.expand("~")
+  local config_path = home .. "/.ssh/config"
+  if vim.fn.filereadable(config_path) ~= 1 then
+    return {}
+  end
+
+  local hosts = {}
+  local current_host = nil
+  local f = io.open(config_path, "r")
+  if not f then
+    return {}
+  end
+
+  for line in f:lines() do
+    line = vim.trim(line)
+    -- Skip comments and empty lines
+    if line ~= "" and not line:match("^#") then
+      local host_match = line:match("^[Hh]ost%s+(.+)$")
+      if host_match then
+        current_host = host_match
+        hosts[current_host] = {}
+      elseif current_host then
+        local key, value = line:match("^%s*([^%s]+)%s+(.+)$")
+        if key and value then
+          hosts[current_host][key:lower()] = value
+        end
+      end
+    end
+  end
+  f:close()
+  return hosts
+end
+
 local function get_ssh_key_path()
   local home = vim.fn.expand("~")
+
+  -- First, try to find from ~/.ssh/config based on remote host
+  local remote_host = get_remote_host()
+  if remote_host then
+    local ssh_config = parse_ssh_config()
+    for host_pattern, config in pairs(ssh_config) do
+      -- Simple pattern matching (supports * wildcard)
+      local pattern = "^" .. host_pattern:gsub("%*", ".*") .. "$"
+      if remote_host:match(pattern) or host_pattern == remote_host then
+        if config.identityfile then
+          local key_path = config.identityfile:gsub("^~", home)
+          if vim.fn.filereadable(key_path) == 1 then
+            return key_path
+          end
+        end
+      end
+    end
+  end
+
+  -- Fallback to default key locations
   local key_candidates = {
     home .. "/.ssh/id_ed25519",
     home .. "/.ssh/id_rsa",
