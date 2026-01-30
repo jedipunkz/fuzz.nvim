@@ -91,253 +91,30 @@ local function git_switch(branch_name, is_new)
   return true
 end
 
-local function get_remote_host()
-  local result = vim.fn.system("git remote get-url origin 2>/dev/null")
-  if vim.v.shell_error ~= 0 then
-    return nil
-  end
-  local url = vim.trim(result)
-  -- Parse SSH URL: git@github.com:user/repo.git or ssh://git@github.com/user/repo.git
-  local host = url:match("^git@([^:]+):") or url:match("^ssh://[^@]+@([^/]+)/")
-  return host
-end
-
-local function parse_ssh_config()
-  local home = vim.fn.expand("~")
-  local config_path = home .. "/.ssh/config"
-  if vim.fn.filereadable(config_path) ~= 1 then
-    return {}
-  end
-
-  local hosts = {}
-  local current_host = nil
-  local f = io.open(config_path, "r")
-  if not f then
-    return {}
-  end
-
-  for line in f:lines() do
-    line = vim.trim(line)
-    -- Skip comments and empty lines
-    if line ~= "" and not line:match("^#") then
-      local host_match = line:match("^[Hh]ost%s+(.+)$")
-      if host_match then
-        current_host = host_match
-        hosts[current_host] = {}
-      elseif current_host then
-        local key, value = line:match("^%s*([^%s]+)%s+(.+)$")
-        if key and value then
-          hosts[current_host][key:lower()] = value
-        end
+local function git_pull_in_terminal(branch_name)
+  local cmd = string.format("git pull origin %s", vim.fn.shellescape(branch_name))
+  vim.cmd("botright split | resize 10")
+  vim.fn.termopen(cmd, {
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.notify("Pulled from origin/" .. branch_name, vim.log.levels.INFO)
       end
-    end
-  end
-  f:close()
-  return hosts
+    end,
+  })
+  vim.cmd("startinsert")
 end
 
-local function get_ssh_key_path()
-  local home = vim.fn.expand("~")
-
-  -- First, try to find from ~/.ssh/config based on remote host
-  local remote_host = get_remote_host()
-  if remote_host then
-    local ssh_config = parse_ssh_config()
-    for host_pattern, config in pairs(ssh_config) do
-      -- Simple pattern matching (supports * wildcard)
-      local pattern = "^" .. host_pattern:gsub("%*", ".*") .. "$"
-      if remote_host:match(pattern) or host_pattern == remote_host then
-        if config.identityfile then
-          local key_path = config.identityfile:gsub("^~", home)
-          if vim.fn.filereadable(key_path) == 1 then
-            return key_path
-          end
-        end
+local function git_push_in_terminal(branch_name)
+  local cmd = string.format("git push origin %s", vim.fn.shellescape(branch_name))
+  vim.cmd("botright split | resize 10")
+  vim.fn.termopen(cmd, {
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.notify("Pushed to origin/" .. branch_name, vim.log.levels.INFO)
       end
-    end
-  end
-
-  -- Fallback to default key locations
-  local key_candidates = {
-    home .. "/.ssh/id_ed25519",
-    home .. "/.ssh/id_rsa",
-    home .. "/.ssh/id_ecdsa",
-    home .. "/.ssh/id_dsa",
-  }
-  for _, key_path in ipairs(key_candidates) do
-    if vim.fn.filereadable(key_path) == 1 then
-      return key_path
-    end
-  end
-  return nil
-end
-
-local function check_ssh_agent_has_key()
-  local result = vim.fn.system("ssh-add -l 2>/dev/null")
-  return vim.v.shell_error == 0 and result ~= ""
-end
-
-local function prompt_passphrase(ssh_key_path, callback)
-  local width = 50
-  local height = 1
-  local row = math.floor((vim.o.lines - 5) / 2)
-  local col = math.floor((vim.o.columns - width) / 2)
-
-  local key_buf = vim.api.nvim_create_buf(false, true)
-  local pass_buf = vim.api.nvim_create_buf(false, true)
-
-  -- SSH Key path display
-  local key_win = vim.api.nvim_open_win(key_buf, false, {
-    relative = "editor",
-    width = width,
-    height = 1,
-    row = row,
-    col = col,
-    style = "minimal",
-    border = "rounded",
-    title = " SSH Key ",
-    title_pos = "center",
+    end,
   })
-
-  vim.api.nvim_buf_set_lines(key_buf, 0, -1, false, { "  " .. ssh_key_path })
-  vim.api.nvim_set_option_value("modifiable", false, { buf = key_buf })
-
-  -- Passphrase input
-  local pass_win = vim.api.nvim_open_win(pass_buf, true, {
-    relative = "editor",
-    width = width,
-    height = height,
-    row = row + 3,
-    col = col,
-    style = "minimal",
-    border = "rounded",
-    title = " Passphrase ",
-    title_pos = "center",
-  })
-
-  vim.api.nvim_set_option_value("modifiable", true, { buf = pass_buf })
-  vim.cmd("startinsert!")
-
-  local function close_passphrase_windows()
-    vim.cmd("stopinsert")
-    if vim.api.nvim_win_is_valid(key_win) then
-      vim.api.nvim_win_close(key_win, true)
-    end
-    if vim.api.nvim_win_is_valid(pass_win) then
-      vim.api.nvim_win_close(pass_win, true)
-    end
-    if vim.api.nvim_buf_is_valid(key_buf) then
-      vim.api.nvim_buf_delete(key_buf, { force = true })
-    end
-    if vim.api.nvim_buf_is_valid(pass_buf) then
-      vim.api.nvim_buf_delete(pass_buf, { force = true })
-    end
-  end
-
-  vim.keymap.set("i", "<CR>", function()
-    local passphrase = vim.api.nvim_buf_get_lines(pass_buf, 0, 1, false)[1] or ""
-    close_passphrase_windows()
-
-    -- Create temporary script for SSH_ASKPASS
-    local tmp_script = vim.fn.tempname()
-    local escaped_passphrase = passphrase:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("`", "\\`"):gsub("%$", "\\$")
-    local script_content = string.format('#!/bin/sh\necho "%s"', escaped_passphrase)
-
-    local f = io.open(tmp_script, "w")
-    if not f then
-      vim.notify("Failed to create temporary script", vim.log.levels.ERROR)
-      return
-    end
-    f:write(script_content)
-    f:close()
-
-    vim.fn.system("chmod +x " .. vim.fn.shellescape(tmp_script))
-
-    -- Run ssh-add with SSH_ASKPASS
-    local cmd = string.format(
-      "SSH_ASKPASS=%s SSH_ASKPASS_REQUIRE=force setsid -w ssh-add %s </dev/null 2>&1",
-      vim.fn.shellescape(tmp_script),
-      vim.fn.shellescape(ssh_key_path)
-    )
-    local result = vim.fn.system(cmd)
-
-    -- Clean up temporary script
-    vim.fn.delete(tmp_script)
-
-    if vim.v.shell_error ~= 0 then
-      vim.notify("Failed to add SSH key: " .. vim.trim(result), vim.log.levels.ERROR)
-      return
-    end
-
-    vim.notify("SSH key added to agent", vim.log.levels.INFO)
-    if callback then
-      callback()
-    end
-  end, { buffer = pass_buf, noremap = true, silent = true })
-
-  vim.keymap.set("i", "<Esc>", function()
-    close_passphrase_windows()
-  end, { buffer = pass_buf, noremap = true, silent = true })
-
-  vim.keymap.set("i", "<C-c>", function()
-    close_passphrase_windows()
-  end, { buffer = pass_buf, noremap = true, silent = true })
-end
-
-local function git_pull(branch_name)
-  local cmd = string.format("git pull origin %s 2>&1", vim.fn.shellescape(branch_name))
-  local result = vim.fn.system(cmd)
-  if vim.v.shell_error ~= 0 then
-    vim.notify("Git pull failed: " .. vim.trim(result), vim.log.levels.ERROR)
-    return false
-  end
-  vim.notify("Pulled from origin/" .. branch_name, vim.log.levels.INFO)
-  return true
-end
-
-local function git_push(branch_name)
-  local cmd = string.format("git push origin %s 2>&1", vim.fn.shellescape(branch_name))
-  local result = vim.fn.system(cmd)
-  if vim.v.shell_error ~= 0 then
-    vim.notify("Git push failed: " .. vim.trim(result), vim.log.levels.ERROR)
-    return false
-  end
-  vim.notify("Pushed to origin/" .. branch_name, vim.log.levels.INFO)
-  return true
-end
-
-local function git_pull_with_passphrase(branch_name)
-  if check_ssh_agent_has_key() then
-    git_pull(branch_name)
-    return
-  end
-
-  local ssh_key_path = get_ssh_key_path()
-  if not ssh_key_path then
-    vim.notify("No SSH key found", vim.log.levels.ERROR)
-    return
-  end
-
-  prompt_passphrase(ssh_key_path, function()
-    git_pull(branch_name)
-  end)
-end
-
-local function git_push_with_passphrase(branch_name)
-  if check_ssh_agent_has_key() then
-    git_push(branch_name)
-    return
-  end
-
-  local ssh_key_path = get_ssh_key_path()
-  if not ssh_key_path then
-    vim.notify("No SSH key found", vim.log.levels.ERROR)
-    return
-  end
-
-  prompt_passphrase(ssh_key_path, function()
-    git_push(branch_name)
-  end)
+  vim.cmd("startinsert")
 end
 
 function M.open()
@@ -553,12 +330,12 @@ function M.open()
   -- Git pull/push keybindings
   vim.keymap.set("i", "<C-r>", function()
     close_windows()
-    git_pull_with_passphrase(current_branch)
+    git_pull_in_terminal(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   vim.keymap.set("i", "<C-y>", function()
     close_windows()
-    git_push_with_passphrase(current_branch)
+    git_push_in_terminal(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
