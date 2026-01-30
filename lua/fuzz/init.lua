@@ -91,6 +91,28 @@ local function git_switch(branch_name, is_new)
   return true
 end
 
+local function git_pull(branch_name)
+  local cmd = string.format("git pull origin %s 2>&1", vim.fn.shellescape(branch_name))
+  local result = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 then
+    vim.notify("Git pull failed: " .. vim.trim(result), vim.log.levels.ERROR)
+    return false
+  end
+  vim.notify("Pulled from origin/" .. branch_name, vim.log.levels.INFO)
+  return true
+end
+
+local function git_push(branch_name)
+  local cmd = string.format("git push origin %s 2>&1", vim.fn.shellescape(branch_name))
+  local result = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 then
+    vim.notify("Git push failed: " .. vim.trim(result), vim.log.levels.ERROR)
+    return false
+  end
+  vim.notify("Pushed to origin/" .. branch_name, vim.log.levels.INFO)
+  return true
+end
+
 function M.open()
   local current_branch = get_current_branch()
   if not current_branch then
@@ -101,12 +123,29 @@ function M.open()
   local branches = get_local_branches()
   local popup_buf = vim.api.nvim_create_buf(false, true)
   local result_buf = vim.api.nvim_create_buf(false, true)
+  local current_buf = vim.api.nvim_create_buf(false, true)
 
   local width = 50
   local height = 1
   local result_height = math.min(10, #branches)
   local row = math.floor((vim.o.lines - height - result_height) / 2)
   local col = math.floor((vim.o.columns - width) / 2)
+
+  -- Current branch display window
+  local current_win = vim.api.nvim_open_win(current_buf, false, {
+    relative = "editor",
+    width = width,
+    height = 1,
+    row = row - 3,
+    col = col,
+    style = "minimal",
+    border = "rounded",
+    title = " Current Branch ",
+    title_pos = "center",
+  })
+
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, { "  " .. current_branch })
+  vim.api.nvim_set_option_value("modifiable", false, { buf = current_buf })
 
   local popup_win = vim.api.nvim_open_win(popup_buf, true, {
     relative = "editor",
@@ -187,11 +226,17 @@ function M.open()
     if vim.api.nvim_win_is_valid(result_win) then
       vim.api.nvim_win_close(result_win, true)
     end
+    if vim.api.nvim_win_is_valid(current_win) then
+      vim.api.nvim_win_close(current_win, true)
+    end
     if vim.api.nvim_buf_is_valid(popup_buf) then
       vim.api.nvim_buf_delete(popup_buf, { force = true })
     end
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_delete(result_buf, { force = true })
+    end
+    if vim.api.nvim_buf_is_valid(current_buf) then
+      vim.api.nvim_buf_delete(current_buf, { force = true })
     end
   end
 
@@ -276,6 +321,17 @@ function M.open()
     local line = vim.api.nvim_buf_get_lines(popup_buf, 0, 1, false)[1] or ""
     local new_line = line:sub(1, cursor[2])
     vim.api.nvim_buf_set_lines(popup_buf, 0, -1, false, { new_line })
+  end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
+
+  -- Git pull/push keybindings
+  vim.keymap.set("i", "<C->>", function()
+    close_windows()
+    git_pull(current_branch)
+  end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
+
+  vim.keymap.set("i", "<C-<>", function()
+    close_windows()
+    git_push(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
