@@ -173,13 +173,31 @@ local function prompt_passphrase(ssh_key_path, callback)
     local passphrase = vim.api.nvim_buf_get_lines(pass_buf, 0, 1, false)[1] or ""
     close_passphrase_windows()
 
-    -- Use expect to add ssh key with passphrase
-    local expect_script = string.format(
-      [[expect -c 'spawn ssh-add %s; expect "Enter passphrase"; send "%s\r"; expect eof']],
-      vim.fn.shellescape(ssh_key_path),
-      passphrase:gsub("'", "'\\''")
+    -- Create temporary script for SSH_ASKPASS
+    local tmp_script = vim.fn.tempname()
+    local escaped_passphrase = passphrase:gsub("\\", "\\\\"):gsub('"', '\\"'):gsub("`", "\\`"):gsub("%$", "\\$")
+    local script_content = string.format('#!/bin/sh\necho "%s"', escaped_passphrase)
+
+    local f = io.open(tmp_script, "w")
+    if not f then
+      vim.notify("Failed to create temporary script", vim.log.levels.ERROR)
+      return
+    end
+    f:write(script_content)
+    f:close()
+
+    vim.fn.system("chmod +x " .. vim.fn.shellescape(tmp_script))
+
+    -- Run ssh-add with SSH_ASKPASS
+    local cmd = string.format(
+      "SSH_ASKPASS=%s SSH_ASKPASS_REQUIRE=force setsid -w ssh-add %s </dev/null 2>&1",
+      vim.fn.shellescape(tmp_script),
+      vim.fn.shellescape(ssh_key_path)
     )
-    local result = vim.fn.system(expect_script)
+    local result = vim.fn.system(cmd)
+
+    -- Clean up temporary script
+    vim.fn.delete(tmp_script)
 
     if vim.v.shell_error ~= 0 then
       vim.notify("Failed to add SSH key: " .. vim.trim(result), vim.log.levels.ERROR)
