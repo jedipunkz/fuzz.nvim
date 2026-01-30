@@ -21,7 +21,7 @@ A simple Neovim plugin for quickly switching and creating git branches with fuzz
 
 ```lua
 {
-  "thirai/fuzz.nvim",
+  "jedipunkz/fuzz.nvim",
   config = function()
     require("fuzz").setup()
   end,
@@ -32,7 +32,7 @@ A simple Neovim plugin for quickly switching and creating git branches with fuzz
 
 ```lua
 use {
-  "thirai/fuzz.nvim",
+  "jedipunkz/fuzz.nvim",
   config = function()
     require("fuzz").setup()
   end,
