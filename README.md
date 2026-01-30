@@ -43,7 +43,9 @@ use {
 
 ```lua
 require("fuzz").setup({
-  keymap = "<C-'>",  -- default keymap to open the branch switcher
+  keymap = "<C-'>",      -- keymap to open the branch switcher
+  pull_keymap = "<C-r>", -- keymap to git pull (in popup)
+  push_keymap = "<C-y>", -- keymap to git push (in popup)
 })
 ```
 
@@ -63,6 +65,8 @@ require("fuzz").setup({
 | `Ctrl-n` | Select next candidate |
 | `Ctrl-p` | Select previous candidate |
 | `Tab` | Autocomplete with selected candidate |
+| `Ctrl-r` | Git pull from origin (opens terminal for passphrase input) |
+| `Ctrl-y` | Git push to origin (opens terminal for passphrase input) |
 
 ### Command
 

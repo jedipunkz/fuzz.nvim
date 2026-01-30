@@ -2,6 +2,8 @@ local M = {}
 
 M.config = {
   keymap = "<C-'>",
+  pull_keymap = "<C-r>",
+  push_keymap = "<C-y>",
 }
 
 local function get_current_branch()
@@ -93,7 +95,7 @@ end
 
 local function git_pull_in_terminal(branch_name)
   local cmd = string.format("git pull origin %s", vim.fn.shellescape(branch_name))
-  vim.cmd("botright split | resize 10")
+  vim.cmd("botright new | resize 10")
   vim.fn.termopen(cmd, {
     on_exit = function(_, exit_code)
       if exit_code == 0 then
@@ -101,12 +103,14 @@ local function git_pull_in_terminal(branch_name)
       end
     end,
   })
-  vim.cmd("startinsert")
+  vim.schedule(function()
+    vim.cmd("startinsert!")
+  end)
 end
 
 local function git_push_in_terminal(branch_name)
   local cmd = string.format("git push origin %s", vim.fn.shellescape(branch_name))
-  vim.cmd("botright split | resize 10")
+  vim.cmd("botright new | resize 10")
   vim.fn.termopen(cmd, {
     on_exit = function(_, exit_code)
       if exit_code == 0 then
@@ -114,7 +118,9 @@ local function git_push_in_terminal(branch_name)
       end
     end,
   })
-  vim.cmd("startinsert")
+  vim.schedule(function()
+    vim.cmd("startinsert!")
+  end)
 end
 
 function M.open()
@@ -148,7 +154,7 @@ function M.open()
     title_pos = "center",
   })
 
-  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, { "  " .. current_branch })
+  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, { current_branch })
   vim.api.nvim_set_option_value("modifiable", false, { buf = current_buf })
 
   local popup_win = vim.api.nvim_open_win(popup_buf, true, {
@@ -328,12 +334,12 @@ function M.open()
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   -- Git pull/push keybindings
-  vim.keymap.set("i", "<C-r>", function()
+  vim.keymap.set("i", M.config.pull_keymap, function()
     close_windows()
     git_pull_in_terminal(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
-  vim.keymap.set("i", "<C-y>", function()
+  vim.keymap.set("i", M.config.push_keymap, function()
     close_windows()
     git_push_in_terminal(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
