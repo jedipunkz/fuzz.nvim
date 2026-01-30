@@ -155,7 +155,7 @@ function M.open()
     col = col,
     style = "minimal",
     border = "rounded",
-    title = " Git Branch ",
+    title = " Switch Branch ",
     title_pos = "center",
   })
 
@@ -324,12 +324,12 @@ function M.open()
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   -- Git pull/push keybindings
-  vim.keymap.set("i", "<C->>", function()
+  vim.keymap.set("i", "<C-r>", function()
     close_windows()
     git_pull(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
-  vim.keymap.set("i", "<C-<>", function()
+  vim.keymap.set("i", "<C-y>", function()
     close_windows()
     git_push(current_branch)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
