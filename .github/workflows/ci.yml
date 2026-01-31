@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v12
+        with:
+          luaVersion: "5.1"
+
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v6
+
+      - name: Install Luacheck
+        run: luarocks install luacheck
+
+      - name: Check Lua Syntax
+        run: |
+          for file in $(find . -name "*.lua" -type f); do
+            echo "Checking syntax: $file"
+            luac -p "$file"
+          done
+
+      - name: Run Luacheck
+        run: |
+          luacheck lua/ plugin/ --codes --std luajit+nvim
