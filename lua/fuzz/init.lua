@@ -135,7 +135,7 @@ function M.open()
   local result_buf = vim.api.nvim_create_buf(false, true)
   local current_buf = vim.api.nvim_create_buf(false, true)
 
-  local width = 50
+  local width = math.floor(vim.o.columns * 0.8)
   local height = 1
   local result_height = math.min(10, #branches)
   local row = math.floor((vim.o.lines - height - result_height) / 2)
