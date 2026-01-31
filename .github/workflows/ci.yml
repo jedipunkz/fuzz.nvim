@@ -34,4 +34,4 @@ jobs:
 
       - name: Run Luacheck
         run: |
-          luacheck lua/ plugin/ --codes --std luajit+nvim
+          luacheck --codes
