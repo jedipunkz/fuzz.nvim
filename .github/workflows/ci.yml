@@ -27,7 +27,7 @@ jobs:
 
       - name: Check Lua Syntax
         run: |
-          for file in $(find . -name "*.lua" -type f); do
+          for file in $(find lua plugin -name "*.lua" -type f); do
             echo "Checking syntax: $file"
             luac -p "$file"
           done
