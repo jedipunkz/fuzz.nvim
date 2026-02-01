@@ -4,6 +4,7 @@ M.config = {
   keymap = "<C-'>",
   pull_keymap = "<C-r>",
   push_keymap = "<C-y>",
+  fetch_keymap = "<C-m>",
 }
 
 local function get_current_branch()
@@ -24,6 +25,48 @@ local function get_local_branches()
     table.insert(branches, line)
   end
   return branches
+end
+
+local function get_remote_branches()
+  local result = vim.fn.system("git branch -r --format='%(refname:short)' 2>/dev/null")
+  if vim.v.shell_error ~= 0 then
+    return {}
+  end
+  local branches = {}
+  for line in result:gmatch("[^\r\n]+") do
+    -- Skip HEAD pointer (e.g., origin/HEAD)
+    if not line:match("/HEAD$") then
+      table.insert(branches, line)
+    end
+  end
+  return branches
+end
+
+local function get_all_branches()
+  local local_branches = get_local_branches()
+  local remote_branches = get_remote_branches()
+
+  -- Create a set of local branch names for quick lookup
+  local local_set = {}
+  for _, branch in ipairs(local_branches) do
+    local_set[branch] = true
+  end
+
+  -- Add remote branches that don't have a corresponding local branch
+  local all_branches = {}
+  for _, branch in ipairs(local_branches) do
+    table.insert(all_branches, { name = branch, is_remote = false })
+  end
+
+  for _, remote_branch in ipairs(remote_branches) do
+    -- Extract branch name without remote prefix (e.g., "origin/feature" -> "feature")
+    local branch_name = remote_branch:match("^[^/]+/(.+)$")
+    if branch_name and not local_set[branch_name] then
+      table.insert(all_branches, { name = remote_branch, is_remote = true })
+    end
+  end
+
+  return all_branches
 end
 
 local function fuzzy_match(str, pattern)
@@ -51,29 +94,56 @@ end
 
 local function filter_branches(branches, input)
   local results = {}
-  for _, branch in ipairs(branches) do
-    local matched, score = fuzzy_match(branch, input)
+  for _, branch_info in ipairs(branches) do
+    local branch_name = branch_info.name
+    local matched, score = fuzzy_match(branch_name, input)
     if matched then
-      table.insert(results, { branch = branch, score = score })
+      -- Prioritize local branches over remote branches
+      local priority = branch_info.is_remote and 0 or 100
+      table.insert(results, {
+        name = branch_name,
+        is_remote = branch_info.is_remote,
+        score = score + priority,
+      })
     end
   end
   table.sort(results, function(a, b)
     return a.score > b.score
   end)
-  local filtered = {}
-  for _, item in ipairs(results) do
-    table.insert(filtered, item.branch)
-  end
-  return filtered
+  return results
 end
 
 local function branch_exists(branches, name)
-  for _, branch in ipairs(branches) do
-    if branch == name then
-      return true
+  for _, branch_info in ipairs(branches) do
+    if branch_info.name == name then
+      return true, branch_info.is_remote
     end
   end
-  return false
+  return false, false
+end
+
+local function git_switch_to_remote(remote_branch)
+  -- Extract local branch name from remote branch (e.g., "origin/feature" -> "feature")
+  local local_name = remote_branch:match("^[^/]+/(.+)$")
+  if not local_name then
+    vim.notify("Invalid remote branch name: " .. remote_branch, vim.log.levels.ERROR)
+    return false
+  end
+
+  -- Create local branch tracking the remote branch
+  local cmd = string.format(
+    "git switch -c %s --track %s",
+    vim.fn.shellescape(local_name),
+    vim.fn.shellescape(remote_branch)
+  )
+
+  local result = vim.fn.system(cmd)
+  if vim.v.shell_error ~= 0 then
+    vim.notify("Git switch failed: " .. vim.trim(result), vim.log.levels.ERROR)
+    return false
+  end
+  vim.notify("Created and switched to branch: " .. local_name .. " (tracking " .. remote_branch .. ")", vim.log.levels.INFO)
+  return true
 end
 
 local function git_switch(branch_name, is_new)
@@ -123,6 +193,24 @@ local function git_push_in_terminal(branch_name)
   end)
 end
 
+local function git_fetch_in_terminal(callback)
+  local cmd = "git fetch --all --prune"
+  vim.cmd("botright new | resize 10")
+  vim.fn.termopen(cmd, {
+    on_exit = function(_, exit_code)
+      if exit_code == 0 then
+        vim.notify("Fetched from remote", vim.log.levels.INFO)
+        if callback then
+          vim.schedule(callback)
+        end
+      end
+    end,
+  })
+  vim.schedule(function()
+    vim.cmd("startinsert!")
+  end)
+end
+
 function M.open()
   local current_branch = get_current_branch()
   if not current_branch then
@@ -130,7 +218,7 @@ function M.open()
     return
   end
 
-  local branches = get_local_branches()
+  local branches = get_all_branches()
   local popup_buf = vim.api.nvim_create_buf(false, true)
   local result_buf = vim.api.nvim_create_buf(false, true)
   local current_buf = vim.api.nvim_create_buf(false, true)
@@ -201,9 +289,10 @@ function M.open()
 
     vim.api.nvim_set_option_value("modifiable", true, { buf = result_buf })
     local display_lines = {}
-    for i, branch in ipairs(filtered) do
+    for i, branch_info in ipairs(filtered) do
       local prefix = (i == selected_idx + 1) and "> " or "  "
-      table.insert(display_lines, prefix .. branch)
+      local suffix = branch_info.is_remote and " [remote]" or ""
+      table.insert(display_lines, prefix .. branch_info.name .. suffix)
     end
     if #display_lines == 0 then
       display_lines = { "  (new branch)" }
@@ -261,8 +350,14 @@ function M.open()
 
     close_windows()
 
-    local is_new = not branch_exists(branches, input)
-    git_switch(input, is_new)
+    local exists, is_remote = branch_exists(branches, input)
+    if is_remote then
+      -- Remote branch selected: create local tracking branch
+      git_switch_to_remote(input)
+    else
+      -- Local branch or new branch
+      git_switch(input, not exists)
+    end
   end
 
   vim.keymap.set("i", "<CR>", function()
@@ -296,8 +391,9 @@ function M.open()
 
   vim.keymap.set("i", "<Tab>", function()
     if #filtered > 0 and filtered[selected_idx + 1] then
-      vim.api.nvim_buf_set_lines(popup_buf, 0, -1, false, { filtered[selected_idx + 1] })
-      vim.api.nvim_win_set_cursor(popup_win, { 1, #filtered[selected_idx + 1] })
+      local branch_name = filtered[selected_idx + 1].name
+      vim.api.nvim_buf_set_lines(popup_buf, 0, -1, false, { branch_name })
+      vim.api.nvim_win_set_cursor(popup_win, { 1, #branch_name })
     end
   end, { buffer = popup_buf, noremap = true, silent = true })
 
@@ -342,6 +438,14 @@ function M.open()
   vim.keymap.set("i", M.config.push_keymap, function()
     close_windows()
     git_push_in_terminal(current_branch)
+  end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
+
+  -- Git fetch keybinding
+  vim.keymap.set("i", M.config.fetch_keymap, function()
+    close_windows()
+    git_fetch_in_terminal(function()
+      M.open()
+    end)
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
