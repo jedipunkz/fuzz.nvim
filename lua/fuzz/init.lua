@@ -4,7 +4,7 @@ M.config = {
   keymap = "<C-'>",
   pull_keymap = "<C-r>",
   push_keymap = "<C-y>",
-  fetch_keymap = "<C-m>",
+  fetch_keymap = "<C-g>",
 }
 
 local function get_current_branch()

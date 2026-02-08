@@ -48,7 +48,7 @@ require("fuzz").setup({
   keymap = "<C-'>",       -- keymap to open the branch switcher
   pull_keymap = "<C-r>",  -- keymap to git pull (in popup)
   push_keymap = "<C-y>",  -- keymap to git push (in popup)
-  fetch_keymap = "<C-m>", -- keymap to git fetch (in popup)
+  fetch_keymap = "<C-g>", -- keymap to git fetch (in popup)
 })
 ```
 
@@ -70,7 +70,7 @@ require("fuzz").setup({
 | `Tab` | Autocomplete with selected candidate |
 | `Ctrl-r` | Git pull from origin (opens terminal for passphrase input) |
 | `Ctrl-y` | Git push to origin (opens terminal for passphrase input) |
-| `Ctrl-m` | Git fetch from all remotes (opens terminal, then reopens popup) |
+| `Ctrl-g` | Git fetch from all remotes (opens terminal) |
 
 ### Command
 
