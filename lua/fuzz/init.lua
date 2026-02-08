@@ -237,7 +237,7 @@ function M.open()
     col = col,
     style = "minimal",
     border = "rounded",
-    title = " Switch Branch (current: " .. current_branch .. ") ",
+    title = " Switch Branch (Current: " .. current_branch .. ") ",
     title_pos = "center",
   })
 
