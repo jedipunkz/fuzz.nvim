@@ -221,29 +221,13 @@ function M.open()
   local branches = get_all_branches()
   local popup_buf = vim.api.nvim_create_buf(false, true)
   local result_buf = vim.api.nvim_create_buf(false, true)
-  local current_buf = vim.api.nvim_create_buf(false, true)
 
   local width = math.floor(vim.o.columns * 0.8)
   local height = 1
-  local result_height = math.min(10, #branches)
-  local row = math.floor((vim.o.lines - height - result_height) / 2)
+  local max_result_height = math.floor(vim.o.lines * 0.5)
+  local result_height = math.max(5, math.min(max_result_height, #branches))
+  local row = math.floor((vim.o.lines - height - result_height - 4) / 2)
   local col = math.floor((vim.o.columns - width) / 2)
-
-  -- Current branch display window
-  local current_win = vim.api.nvim_open_win(current_buf, false, {
-    relative = "editor",
-    width = width,
-    height = 1,
-    row = row - 3,
-    col = col,
-    style = "minimal",
-    border = "rounded",
-    title = " Current Branch ",
-    title_pos = "center",
-  })
-
-  vim.api.nvim_buf_set_lines(current_buf, 0, -1, false, { current_branch })
-  vim.api.nvim_set_option_value("modifiable", false, { buf = current_buf })
 
   local popup_win = vim.api.nvim_open_win(popup_buf, true, {
     relative = "editor",
@@ -253,7 +237,7 @@ function M.open()
     col = col,
     style = "minimal",
     border = "rounded",
-    title = " Switch Branch ",
+    title = " Switch Branch (current: " .. current_branch .. ") ",
     title_pos = "center",
   })
 
@@ -299,7 +283,7 @@ function M.open()
     vim.api.nvim_buf_set_lines(result_buf, 0, -1, false, display_lines)
     vim.api.nvim_set_option_value("modifiable", false, { buf = result_buf })
 
-    local new_height = math.max(1, math.min(10, #display_lines))
+    local new_height = math.max(1, math.min(max_result_height, #display_lines))
     vim.api.nvim_win_set_config(result_win, {
       relative = "editor",
       width = width,
@@ -324,17 +308,11 @@ function M.open()
     if vim.api.nvim_win_is_valid(result_win) then
       vim.api.nvim_win_close(result_win, true)
     end
-    if vim.api.nvim_win_is_valid(current_win) then
-      vim.api.nvim_win_close(current_win, true)
-    end
     if vim.api.nvim_buf_is_valid(popup_buf) then
       vim.api.nvim_buf_delete(popup_buf, { force = true })
     end
     if vim.api.nvim_buf_is_valid(result_buf) then
       vim.api.nvim_buf_delete(result_buf, { force = true })
-    end
-    if vim.api.nvim_buf_is_valid(current_buf) then
-      vim.api.nvim_buf_delete(current_buf, { force = true })
     end
   end
 
