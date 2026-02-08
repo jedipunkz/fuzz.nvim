@@ -443,9 +443,7 @@ function M.open()
   -- Git fetch keybinding
   vim.keymap.set("i", M.config.fetch_keymap, function()
     close_windows()
-    git_fetch_in_terminal(function()
-      M.open()
-    end)
+    git_fetch_in_terminal()
   end, { buffer = popup_buf, noremap = true, silent = true, nowait = true })
 
   vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
