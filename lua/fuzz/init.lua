@@ -271,8 +271,7 @@ function M.open()
 
   vim.api.nvim_buf_set_lines(popup_buf, 0, -1, false, { current_branch })
   vim.api.nvim_set_option_value("modifiable", true, { buf = popup_buf })
-  vim.api.nvim_set_option_value("buftype", "prompt", { buf = popup_buf })
-  vim.fn.prompt_setprompt(popup_buf, "")
+  vim.api.nvim_set_option_value("buftype", "nofile", { buf = popup_buf })
 
   vim.cmd("startinsert!")
   vim.api.nvim_win_set_cursor(popup_win, { 1, #current_branch })
