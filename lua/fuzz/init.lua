@@ -230,6 +230,9 @@ function M.open()
   local row = math.floor((vim.o.lines - height - result_height - 4) / 2)
   local col = math.floor((vim.o.columns - width) / 2)
 
+  vim.api.nvim_set_hl(0, "FuzzInputBorder", { fg = "#FF8800" })
+  vim.api.nvim_set_hl(0, "FuzzInputTitle", { fg = "#FF8800" })
+
   local popup_win = vim.api.nvim_open_win(popup_buf, true, {
     relative = "editor",
     width = width,
@@ -241,6 +244,7 @@ function M.open()
     title = " Switch Branch (Current: " .. current_branch .. ") ",
     title_pos = "center",
   })
+  vim.api.nvim_set_option_value("winhighlight", "FloatBorder:FuzzInputBorder,FloatTitle:FuzzInputTitle", { win = popup_win })
 
   local result_win = vim.api.nvim_open_win(result_buf, false, {
     relative = "editor",
