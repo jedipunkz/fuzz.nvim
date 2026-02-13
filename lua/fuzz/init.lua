@@ -258,6 +258,11 @@ function M.open()
   vim.api.nvim_set_option_value("modifiable", true, { buf = popup_buf })
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = popup_buf })
 
+  -- Disable Neovim's built-in completion for this buffer
+  vim.api.nvim_set_option_value("complete", "", { buf = popup_buf })
+  vim.api.nvim_set_option_value("omnifunc", "", { buf = popup_buf })
+  vim.api.nvim_set_option_value("completefunc", "", { buf = popup_buf })
+
   vim.cmd("startinsert!")
   vim.api.nvim_win_set_cursor(popup_win, { 1, #current_branch })
 
