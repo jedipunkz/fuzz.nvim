@@ -264,10 +264,13 @@ function M.open()
   vim.api.nvim_set_option_value("completefunc", "", { buf = popup_buf })
 
   -- Disable nvim-cmp for this buffer (if nvim-cmp is installed)
-  local ok, cmp = pcall(require, "cmp")
-  if ok then
+  local cmp_ok, cmp = pcall(require, "cmp")
+  if cmp_ok then
     cmp.setup.buffer({ enabled = false })
   end
+
+  -- Disable blink.cmp and other completion plugins that respect vim.b.completion
+  vim.b[popup_buf].completion = false
 
   vim.cmd("startinsert!")
   vim.api.nvim_win_set_cursor(popup_win, { 1, #current_branch })
