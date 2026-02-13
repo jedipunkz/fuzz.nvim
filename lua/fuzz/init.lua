@@ -222,7 +222,8 @@ function M.open()
   local popup_buf = vim.api.nvim_create_buf(false, true)
   local result_buf = vim.api.nvim_create_buf(false, true)
 
-  local width = math.floor(vim.o.columns * 0.8)
+  local width_ratio = vim.o.columns >= 100 and 0.5 or 0.8
+  local width = math.floor(vim.o.columns * width_ratio)
   local height = 1
   local max_result_height = math.floor(vim.o.lines * 0.5)
   local result_height = math.max(5, math.min(max_result_height, #branches))
