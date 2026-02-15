@@ -12,7 +12,7 @@ local function get_current_branch()
   if vim.v.shell_error ~= 0 then
     return nil
   end
-  return vim.trim(result)
+  return vim.trim(result):gsub("[\r\n]+", "")
 end
 
 local function get_local_branches()
